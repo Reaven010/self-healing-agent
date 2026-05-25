@@ -5,7 +5,7 @@ from watchdog.events import FileSystemEventHandler
 from crew_workflow import run_healing_pipeline
 from notifier import send_notification
 
-LOG_FILE = "app.log"
+LOG_FILE = os.getenv("TARGET_LOG_FILE", "app.log")
 
 class LogHandler(FileSystemEventHandler):
     def __init__(self, filename):
@@ -60,11 +60,16 @@ class LogHandler(FileSystemEventHandler):
             send_notification("Self-Healing Pipeline Failure", err_msg)
 
 def start_monitor():
+    # Watch the directory containing the target log file
+    log_dir = os.path.dirname(os.path.abspath(LOG_FILE))
+    if not log_dir or not os.path.exists(log_dir):
+        log_dir = "."
+
     event_handler = LogHandler(LOG_FILE)
     observer = Observer()
-    observer.schedule(event_handler, path=".", recursive=False)
+    observer.schedule(event_handler, path=log_dir, recursive=False)
     
-    print(f"Starting log monitor on {LOG_FILE}...")
+    print(f"Starting log monitor on {LOG_FILE} (watching folder: {log_dir})...")
     observer.start()
     try:
         while True:

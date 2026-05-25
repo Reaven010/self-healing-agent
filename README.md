@@ -78,6 +78,11 @@ SMTP_PORT=587
 SENDER_EMAIL=your_email@gmail.com
 SENDER_PASSWORD=your_app_password
 RECEIVER_EMAIL=your_email@gmail.com
+
+# Target Repository Configuration (Multi-Repo Support)
+# Leave as '.' to heal this project, or change to another directory on your machine
+TARGET_REPO_PATH=.
+TARGET_LOG_FILE=app.log
 ```
 
 ---
