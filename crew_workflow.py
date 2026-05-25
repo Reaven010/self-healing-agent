@@ -1,21 +1,20 @@
 import os
-from crewai import Agent, Task, Crew, Process
-from langchain_openai import ChatOpenAI
+from crewai import Agent, Task, Crew, Process, LLM
 from dotenv import load_dotenv
 
 from tools import run_pytest, git_commit_tool, read_file_tool, write_file_tool
 
 load_dotenv()
 
-# Initialize LM Studio LLM
+# Initialize LM Studio LLM natively using CrewAI's LLM class
 api_base = os.getenv("OPENAI_API_BASE", "http://localhost:1234/v1")
 if not api_base.endswith("/v1") and not api_base.endswith("/v1/"):
     api_base = api_base.rstrip("/") + "/v1"
 
-llm = ChatOpenAI(
-    model_name=os.getenv("OPENAI_MODEL_NAME", "local-model"),
-    openai_api_base=api_base,
-    openai_api_key=os.getenv("OPENAI_API_KEY", "lm-studio"),
+llm = LLM(
+    model="openai/" + os.getenv("OPENAI_MODEL_NAME", "local-model"),
+    base_url=api_base,
+    api_key=os.getenv("OPENAI_API_KEY", "lm-studio"),
     temperature=0.1
 )
 

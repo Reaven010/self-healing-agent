@@ -26,6 +26,11 @@ class LogHandler(FileSystemEventHandler):
 
     def read_new_lines(self):
         try:
+            # If file size is smaller than our last position, it was truncated/overwritten. Reset pointer to 0.
+            current_size = os.path.getsize(self.filename)
+            if current_size < self.last_pos:
+                self.last_pos = 0
+
             # Open with utf-8 and ignore/replace decoding errors to prevent crashes
             with open(self.filename, 'r', encoding='utf-8', errors='replace') as f:
                 f.seek(self.last_pos)

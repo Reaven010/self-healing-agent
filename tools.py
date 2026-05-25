@@ -1,6 +1,6 @@
 import os
 import subprocess
-from langchain.tools import tool
+from crewai.tools import tool
 from git import Repo
 
 @tool("Run Pytest Tool")
