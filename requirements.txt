@@ -6,3 +6,6 @@ pytest
 python-dotenv
 GitPython
 pydantic
+paramiko
+litellm
+

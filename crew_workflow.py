@@ -65,38 +65,51 @@ def create_crew():
 
     return root_cause_agent, code_fix_agent, test_agent, git_commit_agent
 
-def create_tasks(error_log, agents):
+def create_tasks(error_log, agents, repo_config):
     rc_agent, cf_agent, test_agent, git_agent = agents
+    repo_name = repo_config.get("name", "Target Repository")
+    repo_path = repo_config.get("repo_path", ".")
+    is_remote = "server" in repo_config
+    location_desc = f"remote server ({repo_config['server'].get('host')})" if is_remote else "local machine"
 
     rc_task = Task(
-        description=f"Analyze the following error log and determine the root cause:\n{error_log}\nRead the relevant files to understand the bug.",
+        description=f"Analyze the following error log and determine the root cause:\n{error_log}\n"
+                    f"Read the relevant files to understand the bug. The repository is named '{repo_name}' "
+                    f"and resides in '{repo_path}' on the {location_desc}.",
         expected_output="A detailed explanation of the root cause and exactly which file/line needs to be fixed.",
         agent=rc_agent
     )
 
     cf_task = Task(
-        description="Based on the root cause analysis, fix the code. Use the Read File Tool to read the broken file, and Write File Tool to rewrite it with the fix.",
+        description=f"Based on the root cause analysis, fix the code in the repository '{repo_name}' residing at '{repo_path}' on the {location_desc}. "
+                    f"Use the Read File Tool to read the broken file, and Write File Tool to rewrite it with the fix.",
         expected_output="Confirmation that the file has been successfully written with the bug fix.",
         agent=cf_agent
     )
 
     test_task = Task(
-        description="Run pytest using the Run Pytest Tool to verify the fix works. If it fails, report the error. If it passes, confirm success.",
+        description=f"Run pytest inside the target repository '{repo_name}' at '{repo_path}' on the {location_desc} "
+                    f"using the Run Pytest Tool to verify the fix works. If it fails, report the error. If it passes, confirm success.",
         expected_output="The output of the test execution, confirming tests passed.",
         agent=test_agent
     )
 
     git_task = Task(
-        description="If the tests passed, use the Git Commit Tool to commit the changes. Write a descriptive commit message explaining what bug was fixed.",
+        description=f"If the tests passed, use the Git Commit Tool to commit the changes inside target repository '{repo_name}' "
+                    f"at '{repo_path}' on the {location_desc}. Write a descriptive commit message explaining what bug was fixed.",
         expected_output="Confirmation that the git commit was successful.",
         agent=git_agent
     )
 
     return [rc_task, cf_task, test_task, git_task]
 
-def run_healing_pipeline(error_log):
+def run_healing_pipeline(error_log, repo_config):
+    # Set the thread/execution-wide active repository configuration for tool binding
+    from tools import set_active_repo
+    set_active_repo(repo_config)
+
     agents = create_crew()
-    tasks = create_tasks(error_log, agents)
+    tasks = create_tasks(error_log, agents, repo_config)
 
     crew = Crew(
         agents=agents,
@@ -107,3 +120,4 @@ def run_healing_pipeline(error_log):
 
     result = crew.kickoff()
     return result
+
