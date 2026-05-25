@@ -14,33 +14,73 @@ def set_active_repo(config):
     """
     global _active_repo
     _active_repo = config
+    # Ensure local workspace copy is fully prepared and synced
+    prepare_local_workspace()
+
+def prepare_local_workspace():
+    """
+    Clones the GitHub repository locally inside 'workspace/<repo_name>' if it doesn't exist,
+    or runs 'git pull' to sync it if it already exists.
+    """
+    if not _active_repo or "github_url" not in _active_repo:
+        return
+        
+    workspace_dir = os.path.abspath("workspace")
+    if not os.path.exists(workspace_dir):
+        os.makedirs(workspace_dir)
+        
+    repo_name = _active_repo.get("name", "temp_repo").replace(" ", "_").lower()
+    local_path = os.path.join(workspace_dir, repo_name)
+    
+    # Inject username and token into the HTTPS GitHub URL for seamless authentication
+    github_url = _active_repo["github_url"]
+    username = _active_repo.get("github_username")
+    token = _active_repo.get("github_token")
+    
+    auth_url = github_url
+    if username and token:
+        if github_url.startswith("https://"):
+            auth_url = github_url.replace("https://", f"https://{username}:{token}@")
+            
+    if not os.path.exists(local_path):
+        print(f"[{repo_name}] Cloning GitHub repository locally to '{local_path}'...")
+        try:
+            Repo.clone_from(auth_url, local_path)
+            print(f"[{repo_name}] Clone successful.")
+        except Exception as e:
+            print(f"[{repo_name}] Error cloning repository: {e}")
+    else:
+        print(f"[{repo_name}] Synchronizing local workspace copy in '{local_path}'...")
+        try:
+            repo = Repo(local_path)
+            origin = repo.remotes.origin
+            origin.set_url(auth_url)
+            origin.pull()
+            print(f"[{repo_name}] Synchronization complete.")
+        except Exception as e:
+            print(f"[{repo_name}] Error syncing repository: {e}")
 
 def get_target_path(file_path: str = "") -> str:
     """
-    Resolves the directory path of the target file.
-    Prepend target repository base directory.
+    Resolves the directory path of the target file inside the local workspace copy.
+    All agent actions (read, write, test) run locally inside the workspace.
     """
-    repo_base = "."
+    repo_name = "temp_repo"
     if _active_repo:
-        repo_base = _active_repo.get("repo_path", ".")
+        repo_name = _active_repo.get("name", "temp_repo").replace(" ", "_").lower()
         
-    if not file_path:
-        return repo_base
-        
-    # Check if target is a remote repository using UNIX paths
-    if _active_repo and "server" in _active_repo:
-        if file_path.startswith("/") or ":" in file_path:
-            return file_path
-        # Clean trailing slash and combine
-        return f"{repo_base.rstrip('/')}/{file_path}"
+    workspace_dir = os.path.abspath("workspace")
+    local_repo_base = os.path.join(workspace_dir, repo_name)
     
-    # Local pathing
-    return os.path.join(repo_base, file_path) if not os.path.isabs(file_path) else file_path
+    if not file_path:
+        return local_repo_base
+        
+    return os.path.join(local_repo_base, file_path) if not os.path.isabs(file_path) else file_path
 
 def get_ssh_client_for_config(repo_config):
     """
     Establishes an SSH connection to the remote server configured in repo_config.
-    Returns None if the repository is local.
+    Used to pull deployments remotely on the hosted server.
     """
     if not repo_config or "server" not in repo_config:
         return None
@@ -66,42 +106,47 @@ def get_ssh_client_for_config(repo_config):
         
     return ssh
 
-def get_ssh_client():
+def deploy_to_remote_server():
     """
-    Establishes an SSH connection to the remote server if one is configured in _active_repo.
+    SSHs into the remote hosted server and pulls the latest changes from GitHub inside the deploy_path directory.
+    This applies the agent's verified fix live!
     """
-    return get_ssh_client_for_config(_active_repo)
+    if not _active_repo or "server" not in _active_repo:
+        return "Local repository, skipping remote deployment."
+        
+    deploy_path = _active_repo.get("deploy_path")
+    if not deploy_path:
+        return "No remote deploy_path configured, skipping deployment."
+        
+    print(f"[{_active_repo.get('name')}] Triggering remote server deployment Git pull at '{_active_repo['server'].get('host')}'...")
+    try:
+        ssh = get_ssh_client_for_config(_active_repo)
+        # Pull latest changes on remote server
+        cmd = f"cd {deploy_path} && git pull"
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        deploy_out = stdout.read().decode("utf-8") + "\n" + stderr.read().decode("utf-8")
+        ssh.close()
+        return f"\n\n🚀 Remote Deployment Success:\n{deploy_out.strip()}"
+    except Exception as e:
+        return f"\n\n⚠️ Remote Deployment Failed: {str(e)}"
 
 @tool("Run Pytest Tool")
 def run_pytest(test_path: str = ".") -> str:
     """
-    Runs pytest on the specified path inside the target repository and returns the output.
+    Runs pytest on the specified path inside the local workspace repository and returns the output.
     If the tests pass, it returns the success output.
     If the tests fail, it returns the error output.
     """
     try:
-        repo_path = get_target_path()
-        ssh = get_ssh_client()
-        if ssh:
-            try:
-                # Execute tests on the remote server
-                cmd = f"cd {repo_path} && pytest {test_path}"
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                output = stdout.read().decode("utf-8") + "\n" + stderr.read().decode("utf-8")
-                ssh.close()
-                return output
-            except Exception as ssh_err:
-                ssh.close()
-                raise ssh_err
-        else:
-            result = subprocess.run(
-                ["pytest", test_path],
-                capture_output=True,
-                text=True,
-                cwd=repo_path # Run tests inside local target repository
-            )
-            output = result.stdout + "\n" + result.stderr
-            return output
+        local_repo_path = get_target_path()
+        result = subprocess.run(
+            ["pytest", test_path],
+            capture_output=True,
+            text=True,
+            cwd=local_repo_path # Run tests locally in the workspace clone folder
+        )
+        output = result.stdout + "\n" + result.stderr
+        return output
     except Exception as e:
         return f"Error running tests: {str(e)}"
 
@@ -109,116 +154,58 @@ def run_pytest(test_path: str = ".") -> str:
 def git_commit_tool(commit_message: str) -> str:
     """
     Stages all modified files, commits them with the given message, and
-    pushes the changes to the remote repository (GitHub) if configured.
+    pushes the changes back to your GitHub repository before auto-deploying to the server.
     """
     try:
-        repo_path = get_target_path()
-        ssh = get_ssh_client()
-        if ssh:
+        local_repo_path = get_target_path()
+        repo = Repo(local_repo_path)
+        repo.git.add(u=True) # Add all modified tracked files
+        repo.index.commit(commit_message)
+        
+        # Push to remote GitHub
+        push_status = ""
+        if repo.remotes:
             try:
-                # Stage and commit remotely
-                escaped_msg = commit_message.replace('"', '\\"')
-                cmd = f'cd {repo_path} && git add -u && git commit -m "{escaped_msg}"'
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                commit_out = stdout.read().decode("utf-8") + "\n" + stderr.read().decode("utf-8")
-                
-                # Check for remotes on the server and try pushing
-                stdin, stdout, stderr = ssh.exec_command(f"cd {repo_path} && git remote")
-                remotes = stdout.read().decode("utf-8").strip()
-                push_status = ""
-                if remotes:
-                    stdin, stdout, stderr = ssh.exec_command(f"cd {repo_path} && git push")
-                    push_out = stdout.read().decode("utf-8") + "\n" + stderr.read().decode("utf-8")
-                    if "rejected" in push_out or "error" in push_out:
-                        push_status = f" but failed to push to remote: {push_out}"
-                    else:
-                        push_status = " and successfully pushed to remote (GitHub)"
-                else:
-                    push_status = " (no remote repository configured, committed locally on remote server)"
-                
-                ssh.close()
-                return f"Successfully committed remotely: {commit_out}{push_status}"
-            except Exception as ssh_err:
-                ssh.close()
-                raise ssh_err
+                # Push active branch to GitHub using injected credential URL
+                origin = repo.remotes.origin
+                origin.push()
+                push_status = " and successfully pushed back to GitHub"
+            except Exception as push_err:
+                push_status = f" but failed to push to GitHub: {str(push_err)}"
         else:
-            repo = Repo(repo_path)
-            repo.git.add(u=True) # Add all modified tracked files in the target repo
-            repo.index.commit(commit_message)
-            
-            # Try pushing to remote if a remote is configured
-            push_status = ""
-            if repo.remotes:
-                try:
-                    # Push active branch to the configured remote
-                    origin = repo.remotes[0]
-                    origin.push()
-                    push_status = " and successfully pushed to remote (GitHub)"
-                except Exception as push_err:
-                    push_status = f" but failed to push to remote: {str(push_err)}"
-            else:
-                push_status = " (no remote repository configured, committed locally)"
+            push_status = " (no GitHub remote configured, committed locally)"
 
-            return f"Successfully committed with message: {commit_message}{push_status}"
+        # Trigger automatic remote server Git pull deployment
+        deploy_status = deploy_to_remote_server()
+
+        return f"Successfully committed with message: {commit_message}{push_status}{deploy_status}"
     except Exception as e:
         return f"Failed to commit: {str(e)}"
 
 @tool("Read File Tool")
 def read_file_tool(file_path: str) -> str:
     """
-    Reads the content of a specified file inside the target repository.
+    Reads the content of a specified file inside the local workspace repository.
     """
     try:
         full_path = get_target_path(file_path)
-        ssh = get_ssh_client()
-        if ssh:
-            try:
-                sftp = ssh.open_sftp()
-                with sftp.open(full_path, "r") as f:
-                    content = f.read().decode("utf-8")
-                sftp.close()
-                ssh.close()
-                return content
-            except Exception as ssh_err:
-                ssh.close()
-                raise ssh_err
-        else:
-            with open(full_path, "r", encoding="utf-8") as f:
-                return f.read()
+        with open(full_path, "r", encoding="utf-8") as f:
+            return f.read()
     except Exception as e:
         return f"Failed to read file {file_path}: {str(e)}"
 
 @tool("Write File Tool")
 def write_file_tool(input_data: str) -> str:
     """
-    Writes content to a file inside the target repository.
+    Writes content to a file inside the local workspace repository.
     The input_data MUST be a string formatted exactly as:
     file_path|||file_content
     """
     try:
         file_path, content = input_data.split("|||", 1)
         full_path = get_target_path(file_path.strip())
-        ssh = get_ssh_client()
-        if ssh:
-            try:
-                sftp = ssh.open_sftp()
-                # Create parent directories remotely if they don't exist
-                parent_dir = os.path.dirname(full_path)
-                try:
-                    sftp.mkdir(parent_dir)
-                except:
-                    pass
-                with sftp.open(full_path, "w") as f:
-                    f.write(content)
-                sftp.close()
-                ssh.close()
-                return f"Successfully wrote to remote file {file_path}"
-            except Exception as ssh_err:
-                ssh.close()
-                raise ssh_err
-        else:
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            return f"Successfully wrote to {file_path}"
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote to local file {file_path}"
     except Exception as e:
         return f"Failed to write file: {str(e)}. Make sure input is 'path|||content'."

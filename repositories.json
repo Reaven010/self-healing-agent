@@ -1,24 +1,16 @@
 [
   {
-    "name": "Hosted Production App (SSH Key Auth)",
-    "repo_path": "/var/www/my-production-app",
-    "log_file": "/var/www/my-production-app/logs/error.log",
+    "name": "Hosted Production App",
+    "github_url": "https://github.com/Reaven010/self-healing-agent.git",
+    "github_token": "ghp_yourGitHubPersonalAccessTokenHere",
+    "github_username": "Reaven010",
+    "deploy_path": "/var/www/my-repo-deployment",
+    "log_file": "/var/www/my-repo-deployment/logs/error.log",
     "server": {
       "host": "192.168.1.50",
       "user": "ubuntu",
       "port": 22,
       "key_path": "C:/Users/your_local_user/.ssh/id_rsa"
-    }
-  },
-  {
-    "name": "Hosted Staging App (Password Auth)",
-    "repo_path": "/var/www/my-staging-app",
-    "log_file": "/var/www/my-staging-app/app.log",
-    "server": {
-      "host": "192.168.1.51",
-      "user": "root",
-      "port": 22,
-      "password": "your_secure_server_password"
     }
   }
 ]

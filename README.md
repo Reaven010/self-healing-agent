@@ -1,23 +1,25 @@
-# 🩺 Agentic Self-Healing Code Pipeline
+# 🩺 GitOps Agentic Self-Healing Code Pipeline
 
-An automated, agentic code healing system powered by **CrewAI** and **local LLMs (LM Studio)**. This pipeline actively monitors your application's logs for errors, automatically triggers a team of AI agents to diagnose the issue, applies a bug fix directly to your codebase, validates the fix by running unit tests, and commits the resolved changes to Git.
+An automated, agentic code healing system powered by **CrewAI** and **local LLMs (LM Studio)**. This pipeline actively monitors your remote hosted application's logs for errors, automatically checks out/clones the repository from **GitHub** using your credentials, triggers a team of AI agents to diagnose and fix the bug locally, validates the fix by running unit tests, pushes the changes back to GitHub, and triggers an automated `git pull` deployment on your hosted production server!
 
 ```mermaid
 graph TD
-    A[Application Crash/Error] -->|Write to log| B(app.log)
-    B -->|Watchdog File Event| C[Log Monitor Service]
-    C -->|Trigger Pipeline| D[CrewAI Sequential Process]
+    A[Remote Hosted Server] -->|Generates Crash Log| B[error.log]
+    C[Central Self-Healing App] -->|SSH Log Monitor Polling| B
+    C -->|Error Caught| D[Check out/Clone local workspace from GitHub]
     
-    subgraph CrewAI Agents
+    subgraph Central Workspace Healing
         D --> E[🔍 Root Cause Analyst]
-        E -->|Read Source Files| F[💻 Senior Software Engineer]
-        F -->|Apply Code Fix| G[🧪 QA Automation Engineer]
-        G -->|Run Pytest Suite| H[🚀 Release Manager]
-        H -->|Git Stage & Commit| I[Git Repository]
+        E -->|Read & Modify files locally| F[💻 Senior Software Engineer]
+        F -->|Run local pytest tests| G[🧪 QA Automation Engineer]
+        G -->|Push verified fix to GitHub| H[🚀 Release Manager]
     end
     
-    I -->|Completed| J[📧 Email/Terminal Notification]
+    H -->|Push Success| I[GitHub Repository]
+    C -->|Trigger Deploy| J[SSH into Remote Hosted Server]
+    J -->|Run git pull & restart| A
 ```
+
 
 ---
 
