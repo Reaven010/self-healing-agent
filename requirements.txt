@@ -1,0 +1,8 @@
+crewai
+langchain-openai
+langchain
+watchdog
+pytest
+python-dotenv
+GitPython
+pydantic
