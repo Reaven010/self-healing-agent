@@ -37,15 +37,15 @@ def get_target_path(file_path: str = "") -> str:
     # Local pathing
     return os.path.join(repo_base, file_path) if not os.path.isabs(file_path) else file_path
 
-def get_ssh_client():
+def get_ssh_client_for_config(repo_config):
     """
-    Establishes an SSH connection to the remote server if one is configured in _active_repo.
+    Establishes an SSH connection to the remote server configured in repo_config.
     Returns None if the repository is local.
     """
-    if not _active_repo or "server" not in _active_repo:
+    if not repo_config or "server" not in repo_config:
         return None
     
-    server_conf = _active_repo["server"]
+    server_conf = repo_config["server"]
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
@@ -65,6 +65,12 @@ def get_ssh_client():
         ssh.connect(host, port=port, username=user)
         
     return ssh
+
+def get_ssh_client():
+    """
+    Establishes an SSH connection to the remote server if one is configured in _active_repo.
+    """
+    return get_ssh_client_for_config(_active_repo)
 
 @tool("Run Pytest Tool")
 def run_pytest(test_path: str = ".") -> str:

@@ -1,10 +1,12 @@
 import time
 import os
 import json
+import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from crew_workflow import run_healing_pipeline
 from notifier import send_notification
+from tools import get_ssh_client_for_config
 
 CONFIG_FILE = "repositories.json"
 
@@ -65,6 +67,96 @@ class LogHandler(FileSystemEventHandler):
             print(err_msg)
             send_notification(f"Self-Healing Pipeline Failure - {self.repo_config['name']}", err_msg)
 
+
+def poll_remote_log(config, stop_event):
+    """
+    Background thread target that connects over SSH every 5 seconds to check
+    if the remote log file size has increased, reading and executing the healing pipeline.
+    """
+    ssh = None
+    last_pos = 0
+    filename = config["log_file"]
+    name = config["name"]
+    
+    print(f"[{name}] Starting SSH monitoring thread for remote log: '{filename}'")
+    
+    # Establish initial connection and get file size
+    try:
+        ssh = get_ssh_client_for_config(config)
+        sftp = ssh.open_sftp()
+        try:
+            last_pos = sftp.stat(filename).st_size
+        except FileNotFoundError:
+            # Create file on the remote server if it doesn't exist
+            with sftp.open(filename, 'w') as f:
+                f.write("")
+            last_pos = 0
+        sftp.close()
+        print(f"[{name}] Successfully connected! Initial size of remote log: {last_pos} bytes.")
+    except Exception as e:
+        print(f"[{name}] Warning: Initial SSH connection failed: {e}. Will retry during polling cycle.")
+    finally:
+        if ssh:
+            ssh.close()
+            ssh = None
+
+    # Polling loop
+    while not stop_event.is_set():
+        time.sleep(5)
+        try:
+            # Reconnect if closed
+            if not ssh or not ssh.get_transport() or not ssh.get_transport().is_active():
+                ssh = get_ssh_client_for_config(config)
+                
+            sftp = ssh.open_sftp()
+            current_size = sftp.stat(filename).st_size
+            
+            if current_size < last_pos:
+                last_pos = 0 # Handle remote truncation
+                
+            if current_size > last_pos:
+                with sftp.open(filename, 'r') as f:
+                    f.seek(last_pos)
+                    new_lines = f.readlines()
+                    last_pos = f.tell()
+                    
+                if new_lines:
+                    # Decode remote bytes
+                    content_list = []
+                    for line in new_lines:
+                        if isinstance(line, bytes):
+                            content_list.append(line.decode('utf-8', errors='replace'))
+                        else:
+                            content_list.append(str(line))
+                    content = "".join(content_list)
+                    
+                    print(f"\n[{name}] New remote log entries detected:\n{content.strip()}")
+                    if "Error" in content or "Exception" in content:
+                        print(f"[{name}] Error detected! Triggering self-healing pipeline...")
+                        
+                        # Trigger pipeline
+                        try:
+                            print(f"\n--- Starting CrewAI Agents for repository: {name} ---")
+                            result = run_healing_pipeline(content, config)
+                            print(f"--- CrewAI Agents Finished for repository: {name} ---\n")
+                            
+                            message = f"Self-Healing Pipeline completed for {name}.\n\nError:\n{content}\n\nAgent Output:\n{result}"
+                            send_notification(f"Self-Healing Pipeline Success - {name}", message)
+                        except Exception as e:
+                            err_msg = f"Self-Healing Pipeline failed for {name}: {str(e)}"
+                            print(err_msg)
+                            send_notification(f"Self-Healing Pipeline Failure - {name}", err_msg)
+            sftp.close()
+        except Exception as e:
+            # Silent retry next cycle (handles remote connection drops/network changes)
+            try:
+                if ssh:
+                    ssh.close()
+            except:
+                pass
+            ssh = None
+
+
 def start_monitor():
     if not os.path.exists(CONFIG_FILE):
         print(f"Error: Configuration file '{CONFIG_FILE}' not found. Please create it first.")
@@ -83,6 +175,8 @@ def start_monitor():
 
     observer = Observer()
     handlers = []
+    stop_event = threading.Event()
+    polling_threads = []
     
     print("Initializing multi-repository log monitor...")
     for config in repo_configs:
@@ -92,14 +186,21 @@ def start_monitor():
             print(f"Warning: Repository '{name}' is missing 'log_file' configuration. Skipping.")
             continue
             
-        log_dir = os.path.dirname(os.path.abspath(log_file))
-        if not log_dir or not os.path.exists(log_dir):
-            log_dir = "."
-            
-        handler = LogHandler(config)
-        handlers.append(handler)
-        observer.schedule(handler, path=log_dir, recursive=False)
-        print(f"Watching logs for '{name}' at '{log_file}' (folder: {log_dir})")
+        # Spawn remote thread if hosted remote server connection details are set
+        if "server" in config:
+            t = threading.Thread(target=poll_remote_log, args=(config, stop_event), daemon=True)
+            polling_threads.append(t)
+            t.start()
+            print(f"Registered Remote Observer for '{name}' at host '{config['server'].get('host')}'")
+        else:
+            log_dir = os.path.dirname(os.path.abspath(log_file))
+            if not log_dir or not os.path.exists(log_dir):
+                log_dir = "."
+                
+            handler = LogHandler(config)
+            handlers.append(handler)
+            observer.schedule(handler, path=log_dir, recursive=False)
+            print(f"Registered Local Observer for '{name}' at folder '{log_dir}'")
 
     print("\nStarting log monitor service... Press Ctrl+C to stop.")
     observer.start()
@@ -108,6 +209,7 @@ def start_monitor():
             time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopping log monitor service...")
+        stop_event.set()
         observer.stop()
     observer.join()
 

@@ -1,7 +1,24 @@
 [
   {
-    "name": "Local Self-Healing Project",
-    "repo_path": "c:/Users/shubh/Desktop/repositories/self healing",
-    "log_file": "c:/Users/shubh/Desktop/repositories/self healing/app.log"
+    "name": "Hosted Production App (SSH Key Auth)",
+    "repo_path": "/var/www/my-production-app",
+    "log_file": "/var/www/my-production-app/logs/error.log",
+    "server": {
+      "host": "192.168.1.50",
+      "user": "ubuntu",
+      "port": 22,
+      "key_path": "C:/Users/your_local_user/.ssh/id_rsa"
+    }
+  },
+  {
+    "name": "Hosted Staging App (Password Auth)",
+    "repo_path": "/var/www/my-staging-app",
+    "log_file": "/var/www/my-staging-app/app.log",
+    "server": {
+      "host": "192.168.1.51",
+      "user": "root",
+      "port": 22,
+      "password": "your_secure_server_password"
+    }
   }
 ]
