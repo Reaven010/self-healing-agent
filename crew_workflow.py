@@ -1,22 +1,54 @@
 import os
+import sys
+
+# Automatic SQLite3 fallback shim for Linux environments missing native _sqlite3
+try:
+    import _sqlite3
+except Exception:
+    try:
+        import pysqlite3
+        sys.modules["sqlite3"] = sys.modules["pysqlite3"]
+        sys.modules["_sqlite3"] = sys.modules["pysqlite3"]
+    except Exception:
+        pass
+
+
 from crewai import Agent, Task, Crew, Process, LLM
 from dotenv import load_dotenv
+
 
 from tools import run_pytest, git_commit_tool, read_file_tool, write_file_tool
 
 load_dotenv()
 
-# Initialize LM Studio LLM natively using CrewAI's LLM class
-api_base = os.getenv("OPENAI_API_BASE", "http://localhost:1234/v1")
-if not api_base.endswith("/v1") and not api_base.endswith("/v1/"):
-    api_base = api_base.rstrip("/") + "/v1"
+# Initialize LLM (supports local LM Studio/Ollama AND online Cloud APIs like Gemini, OpenAI, Groq)
+model_name = os.getenv("OPENAI_MODEL_NAME", "gemini/gemini-1.5-flash")
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY", "lm-studio")
+api_base = os.getenv("OPENAI_API_BASE", "").strip()
 
-llm = LLM(
-    model="openai/" + os.getenv("OPENAI_MODEL_NAME", "local-model"),
-    base_url=api_base,
-    api_key=os.getenv("OPENAI_API_KEY", "lm-studio"),
-    temperature=0.1
-)
+llm_kwargs = {
+    "api_key": api_key,
+    "temperature": 0.1
+}
+
+# Format model string for CrewAI / LiteLLM
+if "/" in model_name or model_name.startswith("gpt-") or model_name.startswith("claude-"):
+    llm_kwargs["model"] = model_name
+elif model_name.startswith("gemini"):
+    llm_kwargs["model"] = f"gemini/{model_name}" if not model_name.startswith("gemini/") else model_name
+    llm_kwargs["use_native"] = False
+else:
+    llm_kwargs["model"] = f"openai/{model_name}"
+
+if api_base:
+    if not api_base.endswith("/v1") and not api_base.endswith("/v1/"):
+        api_base = api_base.rstrip("/") + "/v1"
+    llm_kwargs["base_url"] = api_base
+
+llm = LLM(**llm_kwargs)
+
+
+
 
 def create_crew():
     # 1. Root Cause Agent
@@ -105,19 +137,38 @@ def create_tasks(error_log, agents, repo_config):
 
 def run_healing_pipeline(error_log, repo_config):
     # Set the thread/execution-wide active repository configuration for tool binding
-    from tools import set_active_repo
+    from tools import set_active_repo, get_target_path
     set_active_repo(repo_config)
 
-    agents = create_crew()
-    tasks = create_tasks(error_log, agents, repo_config)
+    try:
+        agents = create_crew()
+        tasks = create_tasks(error_log, agents, repo_config)
 
-    crew = Crew(
-        agents=agents,
-        tasks=tasks,
-        process=Process.sequential,
-        verbose=True
-    )
+        crew = Crew(
+            agents=agents,
+            tasks=tasks,
+            process=Process.sequential,
+            verbose=True
+        )
 
-    result = crew.kickoff()
-    return result
+        result = crew.kickoff()
+        return result
+    finally:
+        local_path = get_target_path()
+        if os.path.exists(local_path):
+            repo_name = repo_config.get("name", "temp_repo").replace(" ", "_").lower()
+            print(f"\n[{repo_name}] Deleting cloned repository directory at '{local_path}'...")
+            import shutil
+            import time
+            # Try up to 5 times with a brief delay to release Windows file locks
+            for i in range(5):
+                try:
+                    shutil.rmtree(local_path)
+                    print(f"[{repo_name}] Repository successfully deleted.")
+                    break
+                except Exception as e:
+                    if i == 4:
+                        print(f"[{repo_name}] Warning: Failed to delete cloned repository directory: {e}")
+                    else:
+                        time.sleep(1)
 

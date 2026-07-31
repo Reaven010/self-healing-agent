@@ -8,4 +8,6 @@ GitPython
 pydantic
 paramiko
 litellm
-
+pysqlite3-binary
+google-genai
+google-generativeai

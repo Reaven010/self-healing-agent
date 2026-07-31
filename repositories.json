@@ -1,16 +1,209 @@
 [
   {
-    "name": "Hosted Production App",
-    "github_url": "https://github.com/Reaven010/self-healing-agent.git",
-    "github_token": "ghp_yourGitHubPersonalAccessTokenHere",
+    "name": "Naman-",
+    "github_url": "https://github.com/ELTcoder4/Naman-.git",
+    "github_token": "",
     "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\Naman-",
+    "log_file": "Z:\\self healing\\repository\\Naman-\\app.log"
+  },
+  {
+    "name": "CLI-diagnosis-Tool",
+    "github_url": "https://github.com/Reaven010/CLI-diagnosis-Tool.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\CLI-diagnosis-Tool",
+    "log_file": "Z:\\self healing\\repository\\CLI-diagnosis-Tool\\app.log"
+  },
+  {
+    "name": "club",
+    "github_url": "https://github.com/Reaven010/club.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\club",
+    "log_file": "Z:\\self healing\\repository\\club\\app.log"
+  },
+  {
+    "name": "codeforces",
+    "github_url": "https://github.com/Reaven010/codeforces.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\codeforces",
+    "log_file": "Z:\\self healing\\repository\\codeforces\\app.log"
+  },
+  {
+    "name": "conventional-model",
+    "github_url": "https://github.com/Reaven010/conventional-model.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\conventional-model",
+    "log_file": "Z:\\self healing\\repository\\conventional-model\\app.log"
+  },
+  {
+    "name": "data-generator",
+    "github_url": "https://github.com/Reaven010/data-generator.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\data-generator",
+    "log_file": "Z:\\self healing\\repository\\data-generator\\app.log"
+  },
+  {
+    "name": "frontforge",
+    "github_url": "https://github.com/Reaven010/frontforge.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\frontforge",
+    "log_file": "Z:\\self healing\\repository\\frontforge\\app.log"
+  },
+  {
+    "name": "happy_birthday_nitya",
+    "github_url": "https://github.com/Reaven010/happy_birthday_nitya.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\happy_birthday_nitya",
+    "log_file": "Z:\\self healing\\repository\\happy_birthday_nitya\\app.log"
+  },
+  {
+    "name": "kuch-to-hai",
+    "github_url": "https://github.com/Reaven010/kuch-to-hai.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\kuch-to-hai",
+    "log_file": "Z:\\self healing\\repository\\kuch-to-hai\\app.log"
+  },
+  {
+    "name": "learning",
+    "github_url": "https://github.com/Reaven010/learning.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\learning",
+    "log_file": "Z:\\self healing\\repository\\learning\\app.log"
+  },
+  {
+    "name": "model-generation",
+    "github_url": "https://github.com/Reaven010/model-generation.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\model-generation",
+    "log_file": "Z:\\self healing\\repository\\model-generation\\app.log"
+  },
+  {
+    "name": "multiperpose",
+    "github_url": "https://github.com/Reaven010/multiperpose.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\multiperpose",
+    "log_file": "Z:\\self healing\\repository\\multiperpose\\app.log"
+  },
+  {
+    "name": "my_leet_record",
+    "github_url": "https://github.com/Reaven010/my_leet_record.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\my_leet_record",
+    "log_file": "Z:\\self healing\\repository\\my_leet_record\\app.log"
+  },
+  {
+    "name": "new",
+    "github_url": "https://github.com/Reaven010/new.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\new",
+    "log_file": "Z:\\self healing\\repository\\new\\app.log"
+  },
+  {
+    "name": "portfolio",
+    "github_url": "https://github.com/Reaven010/portfolio.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\portfolio",
+    "log_file": "Z:\\self healing\\repository\\portfolio\\app.log"
+  },
+  {
+    "name": "pure-html-website-",
+    "github_url": "https://github.com/Reaven010/pure-html-website-.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\pure-html-website-",
+    "log_file": "Z:\\self healing\\repository\\pure-html-website-\\app.log"
+  },
+  {
+    "name": "Python",
+    "github_url": "https://github.com/Reaven010/Python.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\Python",
+    "log_file": "Z:\\self healing\\repository\\Python\\app.log"
+  },
+  {
+    "name": "Reaven010",
+    "github_url": "https://github.com/Reaven010/Reaven010.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\Reaven010",
+    "log_file": "Z:\\self healing\\repository\\Reaven010\\app.log"
+  },
+  {
+    "name": "Self healing agent",
+    "github_url": "https://github.com/Reaven010/self-healing-agent.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\Self healing agent",
     "deploy_path": "/var/www/my-repo-deployment",
     "log_file": "/var/www/my-repo-deployment/logs/error.log",
     "server": {
       "host": "192.168.1.50",
-      "user": "ubuntu",
+      "user": "Reaven010",
       "port": 22,
-      "key_path": "C:/Users/your_local_user/.ssh/id_rsa"
+      "key_path": "Z:\\self healing\\repository"
     }
+  },
+  {
+    "name": "shiptivitas-1",
+    "github_url": "https://github.com/Reaven010/shiptivitas-1.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\shiptivitas-1",
+    "log_file": "Z:\\self healing\\repository\\shiptivitas-1\\app.log"
+  },
+  {
+    "name": "sig-file-generator",
+    "github_url": "https://github.com/Reaven010/sig-file-generator.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\sig-file-generator",
+    "log_file": "Z:\\self healing\\repository\\sig-file-generator\\app.log"
+  },
+  {
+    "name": "sign-language-to-voice",
+    "github_url": "https://github.com/Reaven010/sign-language-to-voice.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\sign-language-to-voice",
+    "log_file": "Z:\\self healing\\repository\\sign-language-to-voice\\app.log"
+  },
+  {
+    "name": "vityarthi-sayujya-tiwari",
+    "github_url": "https://github.com/Reaven010/vityarthi-sayujya-tiwari.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\vityarthi-sayujya-tiwari",
+    "log_file": "Z:\\self healing\\repository\\vityarthi-sayujya-tiwari\\app.log"
+  },
+  {
+    "name": "Vtiyarthi-OSS",
+    "github_url": "https://github.com/Reaven010/Vtiyarthi-OSS.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\Vtiyarthi-OSS",
+    "log_file": "Z:\\self healing\\repository\\Vtiyarthi-OSS\\app.log"
+  },
+  {
+    "name": "yt-recommender",
+    "github_url": "https://github.com/Reaven010/yt-recommender.git",
+    "github_token": "",
+    "github_username": "Reaven010",
+    "clone_path": "Z:\\self healing\\repository\\yt-recommender",
+    "log_file": "Z:\\self healing\\repository\\yt-recommender\\app.log"
   }
 ]

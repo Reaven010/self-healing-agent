@@ -1,0 +1,4 @@
+python main.py --sync-profile --enforce-daily-commits --all-repos
+
+run in damean
+python daily_commit_bot.py --all-repos --min-commits 10 --daemon --interval 3600

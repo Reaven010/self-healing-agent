@@ -19,18 +19,14 @@ def set_active_repo(config):
 
 def prepare_local_workspace():
     """
-    Clones the GitHub repository locally inside 'workspace/<repo_name>' if it doesn't exist,
-    or runs 'git pull' to sync it if it already exists.
+    Clones the GitHub repository locally inside the configured clone_path (or fallback to 'workspace/<repo_name>')
+    after performing a fresh clean of the target folder.
     """
     if not _active_repo or "github_url" not in _active_repo:
         return
         
-    workspace_dir = os.path.abspath("workspace")
-    if not os.path.exists(workspace_dir):
-        os.makedirs(workspace_dir)
-        
+    local_path = get_target_path()
     repo_name = _active_repo.get("name", "temp_repo").replace(" ", "_").lower()
-    local_path = os.path.join(workspace_dir, repo_name)
     
     # Inject username and token into the HTTPS GitHub URL for seamless authentication
     github_url = _active_repo["github_url"]
@@ -42,35 +38,41 @@ def prepare_local_workspace():
         if github_url.startswith("https://"):
             auth_url = github_url.replace("https://", f"https://{username}:{token}@")
             
-    if not os.path.exists(local_path):
-        print(f"[{repo_name}] Cloning GitHub repository locally to '{local_path}'...")
-        try:
-            Repo.clone_from(auth_url, local_path)
-            print(f"[{repo_name}] Clone successful.")
-        except Exception as e:
-            print(f"[{repo_name}] Error cloning repository: {e}")
-    else:
-        print(f"[{repo_name}] Synchronizing local workspace copy in '{local_path}'...")
-        try:
-            repo = Repo(local_path)
-            origin = repo.remotes.origin
-            origin.set_url(auth_url)
-            origin.pull()
-            print(f"[{repo_name}] Synchronization complete.")
-        except Exception as e:
-            print(f"[{repo_name}] Error syncing repository: {e}")
+    if os.path.exists(local_path):
+        print(f"[{repo_name}] Path '{local_path}' already exists. Deleting it for a fresh clone...")
+        import shutil
+        import time
+        # Try a few times in case of locked files
+        for i in range(3):
+            try:
+                shutil.rmtree(local_path)
+                break
+            except Exception as e:
+                if i == 2:
+                    print(f"[{repo_name}] Warning: could not delete existing path: {e}")
+                else:
+                    time.sleep(1)
+
+    print(f"[{repo_name}] Cloning GitHub repository locally to '{local_path}'...")
+    try:
+        Repo.clone_from(auth_url, local_path)
+        print(f"[{repo_name}] Clone successful.")
+    except Exception as e:
+        print(f"[{repo_name}] Error cloning repository: {e}")
 
 def get_target_path(file_path: str = "") -> str:
     """
     Resolves the directory path of the target file inside the local workspace copy.
     All agent actions (read, write, test) run locally inside the workspace.
     """
-    repo_name = "temp_repo"
-    if _active_repo:
-        repo_name = _active_repo.get("name", "temp_repo").replace(" ", "_").lower()
-        
-    workspace_dir = os.path.abspath("workspace")
-    local_repo_base = os.path.join(workspace_dir, repo_name)
+    if _active_repo and "clone_path" in _active_repo:
+        local_repo_base = os.path.abspath(_active_repo["clone_path"])
+    else:
+        repo_name = "temp_repo"
+        if _active_repo:
+            repo_name = _active_repo.get("name", "temp_repo").replace(" ", "_").lower()
+        workspace_dir = os.path.abspath("repository")
+        local_repo_base = os.path.join(workspace_dir, repo_name)
     
     if not file_path:
         return local_repo_base

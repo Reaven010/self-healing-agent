@@ -1,14 +1,35 @@
 import time
 import os
+import sys
 import json
 import threading
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+
+# Safe import for watchdog with pure-python fallback if _ctypes is missing in system Python
+USE_WATCHDOG = False
+try:
+    from watchdog.observers.polling import PollingObserver as Observer
+    from watchdog.events import FileSystemEventHandler
+    USE_WATCHDOG = True
+except Exception:
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+        USE_WATCHDOG = True
+    except Exception:
+        Observer = None
+        FileSystemEventHandler = object
+        USE_WATCHDOG = False
+
 from crew_workflow import run_healing_pipeline
 from notifier import send_notification
 from tools import get_ssh_client_for_config
+from repo_discovery import sync_repositories_config, CONFIG_FILE
 
-CONFIG_FILE = "repositories.json"
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 class LogHandler(FileSystemEventHandler):
     def __init__(self, repo_config):
@@ -66,6 +87,67 @@ class LogHandler(FileSystemEventHandler):
             err_msg = f"Self-Healing Pipeline failed for {self.repo_config['name']}: {str(e)}"
             print(err_msg)
             send_notification(f"Self-Healing Pipeline Failure - {self.repo_config['name']}", err_msg)
+
+
+def poll_local_log(config, stop_event):
+    """
+    Pure Python background polling fallback for local logs when watchdog/ctypes is unavailable.
+    """
+    filename = config["log_file"]
+    name = config["name"]
+    last_pos = 0
+
+    if not os.path.exists(filename):
+        parent_dir = os.path.dirname(os.path.abspath(filename))
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("")
+        except Exception:
+            pass
+
+    try:
+        last_pos = os.path.getsize(filename) if os.path.exists(filename) else 0
+    except Exception:
+        last_pos = 0
+
+    print(f"[{name}] Started Pure-Python Local Log Observer at '{filename}'")
+
+    while not stop_event.is_set():
+        time.sleep(2)
+        try:
+            if not os.path.exists(filename):
+                continue
+
+            current_size = os.path.getsize(filename)
+            if current_size < last_pos:
+                last_pos = 0
+
+            if current_size > last_pos:
+                with open(filename, 'r', encoding='utf-8', errors='replace') as f:
+                    f.seek(last_pos)
+                    new_lines = f.readlines()
+                    last_pos = f.tell()
+
+                if new_lines:
+                    content = "".join(new_lines)
+                    print(f"\n[{name}] New log entries detected:\n{content.strip()}")
+                    if "Error" in content or "Exception" in content:
+                        print(f"[{name}] Error detected! Triggering self-healing pipeline...")
+                        try:
+                            print(f"\n--- Starting CrewAI Agents for repository: {name} ---")
+                            result = run_healing_pipeline(content, config)
+                            print(f"--- CrewAI Agents Finished for repository: {name} ---\n")
+                            
+                            message = f"Self-Healing Pipeline completed for {name}.\n\nError:\n{content}\n\nAgent Output:\n{result}"
+                            send_notification(f"Self-Healing Pipeline Success - {name}", message)
+                        except Exception as e:
+                            err_msg = f"Self-Healing Pipeline failed for {name}: {str(e)}"
+                            print(err_msg)
+                            send_notification(f"Self-Healing Pipeline Failure - {name}", err_msg)
+        except Exception as e:
+            pass
 
 
 def poll_remote_log(config, stop_event):
@@ -157,7 +239,43 @@ def poll_remote_log(config, stop_event):
             ssh = None
 
 
-def start_monitor():
+def periodic_profile_sync(observer, active_names, stop_event, check_interval=1800):
+    """
+    Periodically queries GitHub API for new repositories and registers observers dynamically.
+    """
+    while not stop_event.is_set():
+        time.sleep(check_interval)
+        if stop_event.is_set():
+            break
+        print("\n[Auto-Sync] Checking GitHub profile for newly created repositories...")
+        try:
+            updated_configs = sync_repositories_config()
+            for config in updated_configs:
+                name = config.get("name")
+                if name and name not in active_names:
+                    log_file = config.get("log_file")
+                    if not log_file:
+                        continue
+                    log_dir = os.path.dirname(os.path.abspath(log_file))
+                    if not os.path.exists(log_dir):
+                        os.makedirs(log_dir, exist_ok=True)
+                    if observer:
+                        handler = LogHandler(config)
+                        observer.schedule(handler, path=log_dir, recursive=False)
+                    else:
+                        t = threading.Thread(target=poll_local_log, args=(config, stop_event), daemon=True)
+                        t.start()
+                    active_names.add(name)
+                    print(f"[Auto-Sync] New repository detected! Registered Observer for '{name}' at '{log_dir}'.")
+        except Exception as e:
+            print(f"[Auto-Sync] Error during periodic sync: {e}")
+
+
+def start_monitor(sync_profile=False):
+    if sync_profile:
+        print("Synchronizing profile repositories from GitHub...")
+        sync_repositories_config()
+
     if not os.path.exists(CONFIG_FILE):
         print(f"Error: Configuration file '{CONFIG_FILE}' not found. Please create it first.")
         return
@@ -173,12 +291,18 @@ def start_monitor():
         print(f"Error: '{CONFIG_FILE}' must be a non-empty list of repository configurations.")
         return
 
-    observer = Observer()
-    handlers = []
     stop_event = threading.Event()
     polling_threads = []
-    
-    print("Initializing multi-repository log monitor...")
+    active_names = set()
+
+    observer = None
+    if USE_WATCHDOG:
+        try:
+            observer = Observer()
+        except Exception:
+            observer = None
+
+    print(f"Initializing multi-repository log monitor for {len(repo_configs)} profile repositories...")
     for config in repo_configs:
         log_file = config.get("log_file")
         name = config.get("name", "Unnamed Repo")
@@ -186,6 +310,8 @@ def start_monitor():
             print(f"Warning: Repository '{name}' is missing 'log_file' configuration. Skipping.")
             continue
             
+        active_names.add(name)
+
         # Spawn remote thread if hosted remote server connection details are set
         if "server" in config:
             t = threading.Thread(target=poll_remote_log, args=(config, stop_event), daemon=True)
@@ -194,24 +320,52 @@ def start_monitor():
             print(f"Registered Remote Observer for '{name}' at host '{config['server'].get('host')}'")
         else:
             log_dir = os.path.dirname(os.path.abspath(log_file))
-            if not log_dir or not os.path.exists(log_dir):
-                log_dir = "."
-                
-            handler = LogHandler(config)
-            handlers.append(handler)
-            observer.schedule(handler, path=log_dir, recursive=False)
-            print(f"Registered Local Observer for '{name}' at folder '{log_dir}'")
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
+
+            if observer:
+                try:
+                    handler = LogHandler(config)
+                    observer.schedule(handler, path=log_dir, recursive=False)
+                    print(f"Registered Local Observer (Watchdog) for '{name}' at folder '{log_dir}'")
+                except Exception:
+                    t = threading.Thread(target=poll_local_log, args=(config, stop_event), daemon=True)
+                    polling_threads.append(t)
+                    t.start()
+            else:
+                t = threading.Thread(target=poll_local_log, args=(config, stop_event), daemon=True)
+                polling_threads.append(t)
+                t.start()
+
+    if sync_profile:
+        sync_thread = threading.Thread(target=periodic_profile_sync, args=(observer, active_names, stop_event), daemon=True)
+        sync_thread.start()
+        print("Registered Automatic Periodic Profile Sync (checks GitHub every 30 minutes for new repos).")
 
     print("\nStarting log monitor service... Press Ctrl+C to stop.")
-    observer.start()
+    if observer:
+        try:
+            observer.start()
+        except Exception:
+            pass
+
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopping log monitor service...")
         stop_event.set()
-        observer.stop()
-    observer.join()
+        if observer:
+            try:
+                observer.stop()
+                observer.join()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
-    start_monitor()
+    import argparse
+    parser = argparse.ArgumentParser(description="Start multi-repository log monitor")
+    parser.add_argument("--sync-profile", action="store_true", help="Sync profile repositories before starting monitor")
+    args = parser.parse_args()
+
+    start_monitor(sync_profile=args.sync_profile)

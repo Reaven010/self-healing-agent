@@ -57,6 +57,10 @@ venv.bak/
 *.log
 app.log
 
+# Repositories folder
+repository/
+profile_repos/
+
 # VS Code / IDEs
 .vscode/
 .idea/
